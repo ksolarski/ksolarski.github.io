@@ -1,0 +1,4 @@
+# Ignore local files
+
+.DS_Store
+.hugo_build.lock
