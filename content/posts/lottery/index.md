@@ -7,7 +7,7 @@ format:
     code-fold: true
 
 theme: default
-fig-format: png
+fig-format: jpeg
 toc: true
 wrap: auto
 number-sections: false
@@ -163,15 +163,20 @@ df['id'].duplicated().any()
     False
 
 ``` python
+# Create a plot
+fig = plt.figure(figsize = (8,5))
+ax = fig.gca()
+
 # Create column corresponding to difference between lotteries and print it
 df = df.sort_values('date')
 df['date_diff'] = df['date'].diff()
-df.set_index('date')['date_diff'].dt.days.hist(bins=50)
+df.set_index('date')['date_diff'].dt.days.hist(bins=50, ax=ax)
 plt.title("Histogram of time intervals between consecutive lotteries")
+plt.style.use('fivethirtyeight')
 plt.show()
 ```
 
-![](index_files/figure-gfm/cell-4-output-1.png)
+![](index_files/figure-gfm/cell-4-output-1.jpeg)
 
 The histogram shows that there are various time intervals between
 lotteries. It suggests that either the time intervals between lotteries
@@ -231,6 +236,7 @@ a = np.unique(numbers, return_counts=True)[1]
 # Create four subplots
 fig, axs = plt.subplots(2, 2, figsize=(20, 15))
 fig.suptitle('Visual comparison of theoretical and empirical distributions', fontsize=20)
+plt.style.use('fivethirtyeight')
 
 # First plot
 # Binomial dstribution and mark occurences as points
@@ -277,7 +283,7 @@ axs[1, 1].set_xlim(700, 900)
 
     (700.0, 900.0)
 
-![](index_files/figure-gfm/cell-6-output-2.png)
+![](index_files/figure-gfm/cell-6-output-2.jpeg)
 
 # Conclusions
 
