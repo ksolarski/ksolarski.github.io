@@ -21,7 +21,7 @@ jupyter: learning_venv
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" integrity="sha512-c3Nl8+7g4LMSTdrm621y7kf9v3SDPnhxLNhcjFJbKECVnmZHTdo+IRO05sNLTH/D3vA6u1X32ehoLC7WFVdheg==" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script>
-<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+<script type="application/javascript"></script>
 
 
 -   <a href="#motivation" id="toc-motivation">Motivation</a>
@@ -258,42 +258,46 @@ model.plot_components(forecast);
 
     Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
 
-    Initial log joint probability = -48.0103
+    Initial log joint probability = -47.9972
+
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-          99       5320.47      0.075233       1078.43           1           1      116   
+          99       5480.64     0.0345595       1112.91      0.4977      0.4977      113   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         199       5765.19      0.035683       2927.04      0.4029      0.4029      227   
+         199       5795.68     0.0329451        442.34           1           1      219   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         299       5865.75     0.0261643       1023.71           1           1      342   
+         299       5866.61     0.0264562       319.987           1           1      325   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         399       5916.86    0.00824348       247.439           1           1      457   
+         399       5959.81     0.0101434       285.108           1           1      441   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         499        5988.2     0.0022345       265.451      0.5821      0.5821      570   
+         499       5999.46     0.0172371       377.168      0.7975      0.7975      555   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         593       6005.23   0.000154705       153.106   1.462e-06       0.001      734  LS failed, Hessian reset 
-         599       6005.65   0.000620659       196.466      0.1554           1      741   
+         599       6017.58     0.0488912       283.515       0.714     0.00714      676   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         618        6006.6   0.000129942         116.5   5.892e-07       0.001      807  LS failed, Hessian reset 
-         699       6022.05     0.0406586        391.05           1           1      902   
+         635       6045.24   0.000613113        444.19    1.74e-06       0.001      755  LS failed, Hessian reset 
+         699       6074.63      0.010214       335.249           1           1      831   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         738        6052.7    0.00156145        237.85   3.701e-06       0.001      986  LS failed, Hessian reset 
-         799       6070.88    0.00193076        254.35           1           1     1055   
+         799       6084.61     0.0034403        189.16      0.5584      0.5584      946   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         872       6080.13   0.000221848       134.443   4.331e-07       0.001     1185  LS failed, Hessian reset 
-         899        6084.5    0.00158684        211.42      0.2915           1     1220   
+         860       6088.51   0.000333973       206.597   4.755e-06       0.001     1067  LS failed, Hessian reset 
+         899       6088.99    0.00171561       120.455           1           1     1114   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-         999       6086.73    0.00169609        115.17      0.9214      0.9214     1342   
+         999       6089.36   0.000318154       64.6902           1           1     1238   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-        1022       6087.82   0.000124185       109.009    4.84e-07       0.001     1430  LS failed, Hessian reset 
-        1099       6089.31   1.09547e-05       80.5162      0.2115      0.2115     1522   
+        1099          6090    0.00289375       122.439           1           1     1356   
         Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
-        1146       6089.32   4.37045e-07       66.1504      0.8096      0.8096     1591   
+        1199       6090.64   0.000378302       84.7257      0.2467           1     1470   
+        Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
+        1299       6090.86   1.45953e-05       87.7132           1           1     1595   
+        Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
+        1399       6090.99   0.000383709       79.3343           1           1     1717   
+        Iter      log prob        ||dx||      ||grad||       alpha      alpha0  # evals  Notes 
+        1425          6091   3.43693e-07       70.7321       0.605       0.605     1751   
     Optimization terminated normally: 
       Convergence detected: relative gradient magnitude is below tolerance
 
-![](index_files/figure-gfm/cell-5-output-3.jpeg)
-
 ![](index_files/figure-gfm/cell-5-output-4.jpeg)
+
+![](index_files/figure-gfm/cell-5-output-5.jpeg)
 
 Note that uncertainty around the prediction is also shown on the graph.
 I'm not going to dive here more into the details of Prophet. The
@@ -311,9 +315,9 @@ Before diving into the code itself, let me first walk you through the
 main concept. I'm going to iterate through dates and for each date I'm
 going to train the Prophet model for all data available up to this date.
 Since Prophet runs Bayesian model, it also provides us with uncertainty
-intervals: `yhat_lower` and \``yhat_upper`. I'm going to make use of
-those uncertainty intervals: If `yhat_lower` of the last datapoint in
-the trainset is higher than the actual price at the time of the last
+intervals: `yhat_lower` and `yhat_upper`. I'm going to make use of those
+uncertainty intervals: If `yhat_lower` of the last datapoint in the
+trainset is higher than the actual price at the time of the last
 datapoint, then the model suggests that bitcoin is undervalued.
 Therefore one should take a long position (buy the asset). A contrary
 argument can also be made when `yhat_upper` is lower than the price.
