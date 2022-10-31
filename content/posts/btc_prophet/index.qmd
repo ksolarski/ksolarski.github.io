@@ -1,0 +1,368 @@
+---
+title: "Backtesting Bitcoin Trading Strategy Based on Facebook Prophet"
+date: "2022-10-24"
+author: Kacper Solarski
+format: 
+  hugo:
+    code-fold: true
+
+theme: default
+fig-format: jpeg
+toc: true
+wrap: auto
+number-sections: false
+lang: en-GB
+jupyter: python3
+math: true
+jupyter: learning_venv
+---
+
+# Motivation
+
+Being passionate about finance and familiar with using Facebook Prophet for time-series forecasting, I decided it’d be a fascinating project to investigate the profitability of a bitcoin trading strategy relying solely on Facebook Prophet. There are many great reads about Facebook Prophet used to predict bitcoin price (e.g. [here](https://medium.com/geekculture/what-happens-if-you-day-trade-crypto-with-facebook-prophet-84df66c31657)), but I haven't found a post anywhere that would fit the model every day, make trades based on the output and backtest this strategy. Let's start this exciting journey by importing the relevant libraries and reading bitcoin data, for which purpose I'm using `yfinance`:
+
+```{python}
+#| echo: true
+#| warning: false
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import yfinance as yf
+from prophet import Prophet
+from datetime import date, timedelta
+import time
+
+BTC_Ticker = yf.Ticker("BTC-EUR")
+df = BTC_Ticker.history(period="max")
+df.head()
+```
+
+# Visualising Bitcoin Price
+First, let's visualise how the price of bitcoin evolved over time:
+
+```{python}
+#| echo: true
+#| warning: false
+plt.figure(figsize=(16,8))
+plt.title('Close Price', fontsize=24)
+plt.plot(df.index, df['Close'])
+plt.xlabel('date', fontsize=18)
+plt.ylabel('EUR', fontsize=18)
+plt.show()
+```
+
+# Using Prophet
+Prophet is an algorithm that requires very little preprocessing of the data. The crucial thing is to have a DataFrame with columns `ds` and `y` that correspond to the date and bitcoin price respectively. Let's get our dataset ready for the model:
+
+```{python}
+#| echo: true
+#| include: true
+df = df.reset_index()
+df['Date'] = df['Date'].dt.tz_convert(None)
+df = df[['Date', 'Close']].rename(columns={'Date':'ds', 'Close':'y'})
+df.head()
+```
+
+Once the data is in the right format, one simply needs to initialize the model, call the method `fit` to train the model, and call `predict` to obtain predictions. Prophet decomposes the time series into a trend (growth), seasonality and holidays. Hence, the fitted function at time $t$ has the following form,
+
+$F(t) = g(t) + s(t) + h(t)$
+
+with $F(t)$ corresponding to time series, $g(t)$ to trend (growth), $s(t)$ to seasonality and $h(t)$ to holidays, all at time $t$. Prophet also enables us to visualize all the fitted components. Let's fit Prophet to bitcoin data and plot the forecast with all the individual components:
+
+```{python}
+#| echo: true
+#| include: true
+#| warning: false
+# Initialize, fit and predict
+model = Prophet()
+model.fit(df)
+forecast = model.predict(df)
+# Plotting
+model.plot(forecast)
+model.plot_components(forecast);
+```
+
+Note that uncertainty around the prediction is also shown on the graph. I'm not going to dive here more into the details of Prophet. The algorithm has excellent [documentation](https://facebook.github.io/prophet/) and there are already plenty of articles that describe in more detail what's happening behind the curtains (e.g. [here](https://towardsdatascience.com/time-series-analysis-with-facebook-prophet-how-it-works-and-how-to-use-it-f15ecf2c0e3a)). Let's now move on to the core: coding the script that will use the output of Prophet to trade bitcoin.
+
+# Developing Backtesting
+Before diving into the code itself, let me first walk you through the main concept. I'm going to iterate through dates and for each date I'm going to train the Prophet model for all data available up to this date. Since Prophet runs Bayesian model, it also provides us with uncertainty intervals: `yhat_lower` and ``yhat_upper`. I'm going to make use of those uncertainty intervals: If `yhat_lower` of the last datapoint in the trainset is higher than the actual price at the time of the last datapoint, then the model suggests that bitcoin is undervalued. Therefore one should take a long position (buy the asset). A contrary argument can also be made when `yhat_upper` is lower than the price. Then bitcoin is overvalued and we should sell the asset (take a short position).
+
+Let's first implement the buy-and-hold strategy which will serve as a benchmark. The code snippet below calculates the profit obtained each day by holding the asset. Let's also add the function that gets cumulative profits and daily returns:
+```{python}
+#| echo: true
+#| include: true
+def add_cumulative_profits_and_returns(df):
+    "Add cumulative profits and daily returns to df."
+    cum_profit = [1]
+    for index, row in df.iloc[1:].iterrows():
+        cum_profit.append(cum_profit[-1] * row['profit'])
+    df['cum_profit'] = cum_profit
+    df['return'] = df['profit'] - 1
+
+
+def buy_and_hold(prophet_df, start_date, end_date):
+    "Return a list of daily profits from buy and hold strategy."
+    prophet_df_train = prophet_df[(prophet_df['ds'] >= str(start_date)) & (
+        prophet_df['ds'] <= str(end_date))].set_index('ds')
+    result = pd.DataFrame((prophet_df_train['y'] / prophet_df_train['y'].shift(
+    )).fillna(1))
+    result['type_of_trade'] = 'long'
+    result.loc[str(start_date), 'type_of_trade'] = 'no_position'
+    result.columns = [['profit', 'type_of_trade']]
+    add_cumulative_profits_and_returns(result)
+    return result
+```
+
+Let's start building the code that will backtest the abovementioned strategy. Let's code the function that will store the results:
+
+```{python}
+#| echo: true
+#| include: true
+def initialize_dataframe(start_date, end_date):
+    "Intialize empty dataframe with dates to store profits and types of trades."
+    index = pd.date_range(start=start_date, end=end_date, freq='D')
+    columns = ['profit', 'type_of_trade']
+    df = pd.DataFrame(index=index, columns=columns)
+    # Initialize first day as no_position
+    df.iloc[0] = [1, 'no_position']
+    return df
+```
+
+Now let's get the functionality that will fit the model and get predictions for a given trainset. Note that we're going to keep refitting the model with new datasets where the new dataset will consist of the previous dataset and an additional row of data. Unfortunately, Prophet doesn't allow the user to update the model with new data. However, the next model can start its search with the parameters obtained from the previous run, which Prophet calls [warm-starting](https://facebook.github.io/prophet/docs/additional_topics.html). Let's use this functionality and test later how much it impacts the results and how much time it saves.
+```{python}
+#| echo: true
+#| include: true
+#| eval: true
+def stan_init(m):
+    """Retrieve parameters from a trained model.
+
+    Retrieve parameters from a trained model in the format
+    used to initialize a new Stan model.
+
+    Parameters
+    ----------
+    m: A trained model of the Prophet class.
+
+    Returns
+    -------
+    A Dictionary containing retrieved parameters of m.
+
+    """
+    res = {}
+    for pname in ['k', 'm', 'sigma_obs']:
+        res[pname] = m.params[pname][0][0]
+    for pname in ['delta', 'beta']:
+        res[pname] = m.params[pname][0]
+    return res
+
+def get_forecast(prophet_df_train, model, warm_starting):
+    "Intialize the model, fit, and get forecasts."
+    if warm_starting and model:
+        # Use warm-starting
+        init = stan_init(model)
+        model = Prophet()
+        model.fit(prophet_df_train, init=init)
+    else:
+        # Fit from scratch
+        model = Prophet()
+        model.fit(prophet_df_train)
+    forecast = model.predict(prophet_df_train)
+    return model, forecast
+```
+
+Finally, let's code two more functions: One that will execute the strategy given the output from the model and one that will go through all the dates, execute the relevant functions and then store the results. I also added an optional argument to allow for short-selling.
+```{python}
+#| echo: true
+#| include: true
+#| eval: true
+def execute_strategy(allow_short, price_today, price_tomorrow, forecast,
+                     df_profits):
+    """Implement the strategy.
+    
+    If price in day `x` is lower than `yhat_lower`, that means that
+    bitcoin is undervalued and long position should be taken.
+    The opposite is also true.
+    Short-selling is allowed if `allow_short` is set to `True`."""
+    
+    # Getting price and `yhat_lower` and 'yhat_upper' for 'today',
+    # which corresponds to the the latest day in training data
+    lower_forecast_today = forecast['yhat_lower'].iloc[-1]
+    upper_forecast_today = forecast['yhat_upper'].iloc[-1]
+    
+    # Take a long position if `price_today < lower_forecast_today`
+    if price_today < lower_forecast_today:
+        # Trade, append profit from the trade
+        profit = price_tomorrow / price_today
+        type_of_trade = 'long'
+        
+    # Take a short position if `price_today > upper_forecast_today` 
+    elif allow_short and price_today > upper_forecast_today:
+        profit = price_today / price_tomorrow
+        type_of_trade = 'short'
+        
+    else:
+        profit = 1
+        type_of_trade = 'no_position'
+    
+    # Set profit and type of trade under 'tomorrow' as then the profit would appear in our account
+    tmr = forecast['ds'].max() + timedelta(days=1)
+    df_profits.loc[tmr][['profit', 'type_of_trade']] = [profit,type_of_trade]
+    
+
+def prophet_main(prophet_df, start_date, end_date, allow_short, warm_starting):
+    """Iterate through dates, train the model and execute strategy."""
+    
+    # Intialize empty dataframe to store profits
+    df_profits = initialize_dataframe(start_date, end_date)
+    
+    # Intialize model as None
+    model = None
+    
+    # Iterate through dates
+    for date in pd.date_range(start=start_date, end=end_date - timedelta(days=1)):
+        
+        # Prepare training dataset
+        prophet_df_train = prophet_df[prophet_df['ds'] <= str(date)]
+        
+        # Get price corresponding to the last day of training dataset
+        price_today = prophet_df_train['y'].iloc[-1]
+        
+        # Get price corresponding to the day after the end of training dataset
+        price_tomorrow = prophet_df[prophet_df['ds'] == str(date + timedelta(days=1))]['y'].iloc[0]
+
+        # Obtain forecast
+        model, forecast = get_forecast(prophet_df_train, model, warm_starting)
+        
+        # Execute strategy
+        execute_strategy(allow_short, price_today, price_tomorrow, forecast,
+                         df_profits)
+        
+    add_cumulative_profits_and_returns(df_profits)
+        
+    return df_profits
+```
+
+Time has come to execute the results. For backtesting, I'll use the period from 2021-09-10 to 2022-09-10. The following strategies will be backtested:
+
+1) Buy-and-hold
+
+2) Prophet without short-selling and without warm-starting
+
+3) Prophet with short-selling and without warm-starting
+
+4) Prophet with short-selling and with warm-starting
+
+```{python}
+#| echo: true
+#| output: true
+#| eval: false
+start_date = date(2021, 9, 10)
+end_date = date(2022, 9, 10)
+
+first_strategy = buy_and_hold(df, start_date=start_date,
+                                    end_date=end_date)
+second_strategy = prophet_main(df, start_date=start_date,
+                                    end_date=end_date,
+                                    allow_short=False,
+                                    warm_starting=False)
+start_time = time.time()
+third_strategy = prophet_main(df, start_date=start_date,
+                                    end_date=end_date, 
+                                    allow_short=True,
+                                    warm_starting=False)
+time_no_warm_starting = time.time() - start_time
+start_time = time.time()
+fourth_strategy = prophet_main(df, start_date=start_date,
+                                    end_date=end_date, 
+                                    allow_short=True,
+                                    warm_starting=True)
+time_warm_starting = time.time() - start_time
+```
+
+```{python}
+#| echo: false
+#| output: false
+#| eval: true
+start_date = date(2021, 9, 10)
+end_date = date(2022, 9, 10)
+```
+```{python}
+#| echo: false
+#| output: false
+#| eval: false
+import pickle
+first_strategy.to_pickle('first_strategy.pkl.gz')
+second_strategy.to_pickle('second_strategy.pkl.gz')
+third_strategy.to_pickle('third_strategy.pkl.gz')
+fourth_strategy.to_pickle('fourth_strategy.pkl.gz')
+with open('time_no_warm_starting.pkl.gz', 'wb') as f:
+    pickle.dump(time_no_warm_starting, f)
+with open('time_warm_starting.pkl.gz', 'wb') as f:
+    pickle.dump(time_warm_starting, f)
+```
+```{python}
+#| echo: false
+#| output: false
+#| eval: true
+first_strategy = pd.read_pickle('first_strategy.pkl.gz')
+second_strategy = pd.read_pickle('second_strategy.pkl.gz')
+third_strategy = pd.read_pickle('third_strategy.pkl.gz')
+fourth_strategy = pd.read_pickle('fourth_strategy.pkl.gz')
+import pickle
+with open('time_no_warm_starting.pkl.gz', 'rb') as f:
+    time_no_warm_starting = pickle.load(f)
+with open('time_warm_starting.pkl.gz', 'rb') as f:
+    time_warm_starting = pickle.load(f)
+```
+# Results
+The code snippet below shows that warm-starting resulted in a three-fold decrease in execution time:
+```{python}
+#| echo: true
+#| output: true
+#| eval: true
+print(f'Time of implementation without warm-starting\n{time_no_warm_starting}')
+print(f'Time of implementation with warm-starting\n{time_warm_starting}')
+```
+
+Let's visualise the cumulative profits of all strategies:
+```{python}
+#| echo: true
+#| include: true
+#| eval: true
+first_strategy['cum_profit'].plot()
+second_strategy['cum_profit'].plot()
+third_strategy['cum_profit'].plot()
+fourth_strategy['cum_profit'].plot()
+plt.legend(['First Strategy', 'Second Strategy', 'Third Strategy', 'Fourth Strategy'])
+plt.ylabel('Cumulative Returns')
+plt.xlabel('Date')
+plt.show()
+```
+Very bad! It seems that none of the strategies is able to significantly outperform buy-and-hold strategy. I also calculated Sharpe Ratio to evaluate the strategies:
+```{python}
+#| echo: true
+#| include: true
+#| warning: false
+def get_sharpe_ratio(df):
+    return df.mean()['return'] / df.std()['return']
+
+def get_cum_return(df):
+    return df['cum_profit'].iloc[-1]
+
+def get_results():
+    d = {'first_strategy': [np.nan, np.nan],
+         'second_strategy': [np.nan, np.nan],
+         'third_strategy': [np.nan, np.nan],
+         'fourth_strategy': [np.nan, np.nan]}
+
+    results = pd.DataFrame(d, index = ['Sharpe Ratio', 'Cumulative Return'])
+
+    for i, df in enumerate([first_strategy, second_strategy, third_strategy, fourth_strategy]):
+        results.iloc[0, i] = get_sharpe_ratio(df)
+        results.iloc[1, i] = get_cum_return(df)
+    return results
+results = get_results()
+print(results)
+```
+
+The Sharpe Ratios are consistent with the graph above: Strategies based on Prophet are not significantly better than the buy-and-hold strategy. But there's also some light: The strategies don't seem to be significantly worse than buy-and-hold. There are plenty of improvements that could be tried here. First of all, I fitted the most basic model that is based on the time-series itself and uses no external factors. It's quite a common approach to use the Twitter sentiment as a predictor and it has been proven to provide a lot of predictive power (e.g. [here](https://jfin-swufe.springeropen.com/articles/10.1186/s40854-022-00352-7)). Secondly, one can tune the hyperparameters of the model. There's even a discussion on how it can be done in [Prophet documentation](https://facebook.github.io/prophet/docs/diagnostics.html). Thirdly, my trading strategy was based on uncertainty intervals from the output. However, there's no real justification for this strategy and many alternative strategies could have been used instead. I hope to find time to try out those ideas but for now, this is it! I hope you enjoyed the read and also learned new things.
