@@ -276,9 +276,9 @@ through the dataset once, it doesn't have any regularization parameters,
 it doesn't shuffle the data, and it doesn't have early stopping.
 
 Since I was very surprised by how fast this algorithm is on a very large
-dataset, I expanded this implementation into the package \[effCTR\]
-(https://github.com/ksolarski/effCTR) and added a couple of features to
-it. This
+dataset, I expanded this implementation into the package
+[effCTR](https://github.com/ksolarski/effCTR) and added a couple of
+features to it. This
 [notebook](https://github.com/ksolarski/effCTR/blob/main/notebooks/demo.ipynb)
 also shows how the algorithm from the package can be used and how much
 faster it is on large datasets compared to sklearn.
