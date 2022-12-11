@@ -1,7 +1,7 @@
 baseURL = 'http://ksolarski.github.io/'
 languageCode = 'en-uk'
 title = 'Kacper Solarski'
-theme = "hugo-PaperMod"
+theme = "PaperMod"
 ignoreFiles = [ "\\.qmd$", "\\.ipynb$" ]
 paginate = 5
 enableRobotsTXT = true
@@ -105,7 +105,7 @@ SiteVerificationTag = "XYZabc"
   hiddenInSingle = true
 
   [params.editPost]
-  URL = "https://github.com/<path_to_repo>/content"
+  URL = "https://github.com/ksolarski/ksolarski.github.io/tree/main/content"
   Text = "Suggest Changes"
   appendFilePath = true
 
